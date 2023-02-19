@@ -93,15 +93,17 @@ class ChamferDistance(torch.nn.Module):
             )
 
         # Forward Chamfer distance (batchsize_source, lengths_source)
-        chamfer_forward = source_nn.dists[..., 0]
+        chamfer_forward_dist = source_nn.dists[..., 0]
+        chamfer_forward_idx = source_nn.idx[..., 0]
         chamfer_backward = None
         if reverse or bidirectional:
             # Backward Chamfer distance (batchsize_source, lengths_source)
-            chamfer_backward = target_nn.dists[..., 0]
+            chamfer_backward_dist = target_nn.dists[..., 0]
+            chamfer_backward_idx = target_nn.idx[..., 0]
 
-        chamfer_forward = chamfer_forward.sum(1)  # (batchsize_source,)
+        chamfer_forward = chamfer_forward_dist.sum(1)  # (batchsize_source,)
         if reverse or bidirectional:
-            chamfer_backward = chamfer_backward.sum(1)  # (batchsize_target,)
+            chamfer_backward = chamfer_backward_dist.sum(1)  # (batchsize_target,)
 
         if reduction == "sum":
             chamfer_forward = chamfer_forward.sum()  # (1,)
@@ -113,11 +115,23 @@ class ChamferDistance(torch.nn.Module):
                 chamfer_backward = chamfer_backward.mean()  # (1,)
 
         if bidirectional:
-            return chamfer_forward + chamfer_backward
-        if reverse:
-            return chamfer_backward
+            info = (chamfer_forward_dist,
+                    chamfer_forward_idx,
+                    chamfer_backward_dist,
+                    chamfer_backward_idx)
+        elif reverse:
+            info = (chamfer_backward_dist,
+                    chamfer_backward_idx)
+        else:
+            info = (chamfer_forward_dist,
+                    chamfer_forward_idx)
 
-        return chamfer_forward
+        if bidirectional:
+            return chamfer_forward, chamfer_backward, info
+        if reverse:
+            return chamfer_backward, info
+
+        return chamfer_forward, info
 
 
 class _knn_points(Function):
